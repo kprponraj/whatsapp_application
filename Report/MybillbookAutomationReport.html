@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>MybillbookAutomationReport.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>MybillbookAutomationReport.html</h1>
+    <p>Report generated on 20-Sep-2023 at 15:30:33 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Summary</h2>
+    <p>8 tests ran in 289.91 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">6 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">1 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_bill.py::test_downloadingexcelsheetwp</td>
+          <td class="col-duration">21.23</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;pywinauto.application.WindowSpecification object at 0x000001648B144950&gt;<br/>criteria = [{&#x27;app&#x27;: &lt;pywinauto.application.Application object at 0x00000164FFFE7C10&gt;, &#x27;backend&#x27;: &#x27;uia&#x27;, &#x27;best_match&#x27;: &#x27;MyBillBookSimpleBillingAndInventorySoftware&#x27;}, {&#x27;control_type&#x27;: &#x27;Text&#x27;, &#x27;title&#x27;: &#x27;Balance Sheet&#x27;, &#x27;top_level_only&#x27;: False}]<br/>timeout = 5.0, retry_interval = 0.09<br/><br/>    def __resolve_control(self, criteria, timeout=None, retry_interval=None):<br/>        &quot;&quot;&quot;<br/>        Find a control using criteria<br/>    <br/>        * **criteria** - a list that contains 1 or 2 dictionaries<br/>    <br/>             1st element is search criteria for the dialog<br/>    <br/>             2nd element is search criteria for a control of the dialog<br/>    <br/>        * **timeout** -  maximum length of time to try to find the controls (default 5)<br/>        * **retry_interval** - how long to wait between each retry (default .2)<br/>        &quot;&quot;&quot;<br/>        if timeout is None:<br/>            timeout = Timings.window_find_timeout<br/>        if retry_interval is None:<br/>            retry_interval = Timings.window_find_retry<br/>    <br/>        try:<br/>&gt;           ctrl = wait_until_passes(<br/>                timeout,<br/>                retry_interval,<br/>                self.__get_ctrl,<br/>                (findwindows.ElementNotFoundError,<br/>                 findbestmatch.MatchError,<br/>                 controls.InvalidWindowHandle,<br/>                 controls.InvalidElement),<br/>                criteria)<br/><br/>..\..\Lib\site-packages\pywinauto\application.py:250: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>timeout = 5.0, retry_interval = 0.09<br/>func = &lt;bound method WindowSpecification.__get_ctrl of &lt;pywinauto.application.WindowSpecification object at 0x000001648B144950&gt;&gt;<br/>exceptions = (&lt;class &#x27;pywinauto.findwindows.ElementNotFoundError&#x27;&gt;, &lt;class &#x27;pywinauto.findbestmatch.MatchError&#x27;&gt;, &lt;class &#x27;pywinauto.controls.hwndwrapper.InvalidWindowHandle&#x27;&gt;, &lt;class &#x27;pywinauto.base_wrapper.InvalidElement&#x27;&gt;)<br/>args = ([{&#x27;app&#x27;: &lt;pywinauto.application.Application object at 0x00000164FFFE7C10&gt;, &#x27;backend&#x27;: &#x27;uia&#x27;, &#x27;best_match&#x27;: &#x27;MyBillBookSimpleBillingAndInventorySoftware&#x27;}, {&#x27;control_type&#x27;: &#x27;Text&#x27;, &#x27;title&#x27;: &#x27;Balance Sheet&#x27;, &#x27;top_level_only&#x27;: False}],)<br/>kwargs = {}, start = 2431306.4785793, time_left = -0.52751180017367, err = TimeoutError()<br/><br/>    def wait_until_passes(timeout,<br/>                          retry_interval,<br/>                          func,<br/>                          exceptions=(Exception),<br/>                          *args, **kwargs):<br/>        &quot;&quot;&quot;<br/>        Wait until ``func(*args, **kwargs)`` does not raise one of the exceptions<br/>    <br/>        * **timeout**  how long the function will try the function<br/>        * **retry_interval**  how long to wait between retries<br/>        * **func** the function that will be executed<br/>        * **exceptions**  list of exceptions to test against (default: Exception)<br/>        * **args** optional arguments to be passed to func when called<br/>        * **kwargs** optional keyword arguments to be passed to func when called<br/>    <br/>        Returns the return value of the function<br/>        If the operation times out then the original exception raised is in<br/>        the &#x27;original_exception&#x27; attribute of the raised exception.<br/>    <br/>        e.g. ::<br/>    <br/>            try:<br/>                # wait a maximum of 10.5 seconds for the<br/>                # window to be found in increments of .5 of a second.<br/>                # P.int a message and re-raise the original exception if never found.<br/>                wait_until_passes(10.5, .5, self.Exists, (ElementNotFoundError))<br/>            except TimeoutError as e:<br/>                print(&quot;timed out&quot;)<br/>                raise e.<br/>        &quot;&quot;&quot;<br/>        start = timestamp()<br/>    <br/>        # keep trying until the timeout is passed<br/>        while True:<br/>            try:<br/>                # Call the function with any arguments<br/>                func_val = func(*args, **kwargs)<br/>    <br/>                # if no exception is raised then we are finished<br/>                break<br/>    <br/>            # An exception was raised - so wait and try again<br/>            except exceptions as e:<br/>    <br/>                # find out how much of the time is left<br/>                time_left = timeout - (timestamp() - start)<br/>    <br/>                # if we have to wait some more<br/>                if time_left &gt; 0:<br/>                    # wait either the retry_interval or else the amount of<br/>                    # time until the timeout expires (whichever is less)<br/>                    time.sleep(min(retry_interval, time_left))<br/>    <br/>                else:<br/>                    # Raise a TimeoutError - and put the original exception<br/>                    # inside it<br/>                    err = TimeoutError()<br/>                    err.original_exception = e<br/>&gt;                   raise err<br/><span class="error">E                   pywinauto.timings.TimeoutError</span><br/><br/>..\..\Lib\site-packages\pywinauto\timings.py:458: TimeoutError<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>    def test_downloadingexcelsheetwp():<br/>     logging.info(&quot;Test case starting...&quot;)<br/>     app = mybillbookbase()<br/>     app.waittillload()<br/>     app.reportmenu()<br/>     app.waittillload()<br/>&gt;    app.balancesheet()<br/><br/>test_bill.py:175: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>mybillbookbase.py:163: in balancesheet<br/>    balancesheet = self.app.MyBillBookSimpleBillingAndInventorySoftware.child_window(title=&quot;Balance Sheet&quot;, control_type=&quot;Text&quot;).wrapper_object()<br/>..\..\Lib\site-packages\pywinauto\application.py:267: in wrapper_object<br/>    ctrls = self.__resolve_control(self.criteria)<br/>..\..\Lib\site-packages\pywinauto\application.py:261: in __resolve_control<br/>    raise e.original_exception<br/>..\..\Lib\site-packages\pywinauto\timings.py:436: in wait_until_passes<br/>    func_val = func(*args, **kwargs)<br/>..\..\Lib\site-packages\pywinauto\application.py:222: in __get_ctrl<br/>    ctrl = self.backend.generic_wrapper_class(findwindows.find_element(**ctrl_criteria))<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>kwargs = {&#x27;backend&#x27;: &#x27;uia&#x27;, &#x27;control_type&#x27;: &#x27;Text&#x27;, &#x27;parent&#x27;: &lt;uia_element_info.UIAElementInfo - &#x27;My BillBook | Simple Billing and Inventory Software&#x27;, Chrome_WidgetWin_1, 9503144&gt;, &#x27;title&#x27;: &#x27;Balance Sheet&#x27;, ...}<br/>elements = []<br/><br/>    def find_element(**kwargs):<br/>        &quot;&quot;&quot;<br/>        Call find_elements and ensure that only one element is returned<br/>    <br/>        Calls find_elements with exactly the same arguments as it is called with<br/>        so please see :py:func:`find_elements` for the full parameters description.<br/>        &quot;&quot;&quot;<br/>        elements = find_elements(**kwargs)<br/>    <br/>        if not elements:<br/>&gt;           raise ElementNotFoundError(kwargs)<br/><span class="error">E           pywinauto.findwindows.ElementNotFoundError: {&#x27;title&#x27;: &#x27;Balance Sheet&#x27;, &#x27;control_type&#x27;: &#x27;Text&#x27;, &#x27;top_level_only&#x27;: False, &#x27;parent&#x27;: &lt;uia_element_info.UIAElementInfo - &#x27;My BillBook | Simple Billing and Inventory Software&#x27;, Chrome_WidgetWin_1, 9503144&gt;, &#x27;backend&#x27;: &#x27;uia&#x27;}</span><br/><br/>..\..\Lib\site-packages\pywinauto\findwindows.py:87: ElementNotFoundError<br/></div></td></tr></tbody>
+      <tbody class="xfailed results-table-row">
+        <tr>
+          <td class="col-result">XFailed</td>
+          <td class="col-name">test_bill.py::test_creatingaduplicateparty</td>
+          <td class="col-duration">27.48</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.mark.xfail<br/>    def test_creatingaduplicateparty():<br/>     logging.info(&quot;Test case starting...&quot;)<br/>     app = mybillbookbase()<br/>     #app.clickingcreatesalesinvoice()<br/>     app.clickingdropdown()<br/>     app.clickingparties()<br/>     app.partynameinput(tc001data.name)<br/>     app.mobilenumber(tc001data.mn)<br/>     app.emailinputbox(tc001data.email)<br/>     app.openingbalancefield(tc001data.amount)<br/>     app.partycategory()<br/>     app.createcategory()<br/>     app.createcategoryname(tc001data.categoryname)<br/>     app.savecategoryname()<br/>     app.screenshot2()<br/>     app.gstnumberinputbox(tc001data.gstnumber)<br/>     app.pannumberinputbox(tc001data.pannumber)<br/>     app.billingaddresspopup()<br/>&gt;    app.billingaddress_streetname(tc001data.address)<br/><br/>test_bill.py:61: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;mybillbookbase.mybillbookbase object at 0x000001648B038490&gt;, address = &#x27;No 36 Vijayaragava Road T Nagar&#x27;<br/><br/>    def billingaddress_streetname(self,address):<br/>        try: billingaddress_streetname = self.app.MyBillBookSimpleBillingAndInventorySoftware.child_window(title=&quot;Enter Street Address&quot;, auto_id=&quot;street_addr&quot;, control_type=&quot;Edit&quot;).wrapper_object()<br/>        except findwindows.ElementNotFoundError:<br/>            if self.app:<br/>                self.app.kill()<br/>        except Exception as e:<br/>            print(f&quot;An error occurred: {e}&quot;)<br/>            if self.app:<br/>                self.app.kill()<br/>    <br/>&gt;       billingaddress_streetname.set_text(address)<br/><span class="error">E       UnboundLocalError: cannot access local variable &#x27;billingaddress_streetname&#x27; where it is not associated with a value</span><br/><br/>mybillbookbase.py:90: UnboundLocalError<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_creataparty</td>
+          <td class="col-duration">33.34</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>Record saved and its reflected in screen
+Record saved and its reflected in screen
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_deleteaparty</td>
+          <td class="col-duration">30.07</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_createsalesinvoice</td>
+          <td class="col-duration">56.46</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_gettingtableofdatainexcelsheet</td>
+          <td class="col-duration">50.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_deleteapartywithsalesinvoice</td>
+          <td class="col-duration">32.55</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_bill.py::test_downloadexcelsheet</td>
+          <td class="col-duration">33.74</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>
