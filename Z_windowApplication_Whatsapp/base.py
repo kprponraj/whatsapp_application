@@ -49,9 +49,18 @@ def clickevent1(up_backend,up_title,upe_title,upe_autoid,upe_controlyype):
  main_window = Application(backend=up_backend).connect(title=up_title)
  app_window = main_window.window(title=up_title)
  time.sleep(3)
- click_event =app_window.child_window(title=upe_title,auto_id=upe_autoid,control_type=upe_controlyype,found_index=2).wrapper_object()
+ click_event =app_window.child_window(title=upe_title,auto_id=upe_autoid,control_type=upe_controlyype,found_index=1).wrapper_object()
  click_event.click_input()
  pass
+
+def clickevent3(up_backend,up_title,upe_title,upe_autoid,upe_controlyype):
+ main_window = Application(backend=up_backend).connect(title=up_title)
+ app_window = main_window.window(title=up_title)
+ time.sleep(3)
+ click_event =app_window.child_window(title=upe_title,auto_id=upe_autoid,control_type=upe_controlyype,found_index=3).wrapper_object()
+ click_event.click_input()
+ pass
+
 
 
 def settextevent(up_backend,up_title,up_text):
@@ -67,6 +76,11 @@ def settextevent(up_backend,up_title,up_text):
  pass
 def enterkey():
  send_keys("{ENTER}")
+ pass
+
+
+def clearkey():
+ send_keys('^a{BACKSPACE}')
  pass
 
 
